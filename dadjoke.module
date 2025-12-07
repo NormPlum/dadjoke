@@ -1,0 +1,66 @@
+<?php
+/**
+ * @file
+ * Display random Dad jokes from icanhazdadjoke.com
+ */
+
+/**
+ * Implements hook_block_info().
+ */
+function dadjoke_block_info() {
+  $blocks['dadjoke'] = array(
+    'info' => t('Dad joke'),
+    'description' => t('A random Dad joke from icanhazdadjoke.com'),
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function dadjoke_block_view($delta = '', $settings = array(), $contexts = array()) {
+  $block = array();
+
+  switch ($delta) {
+    case 'dadjoke':
+      $block['subject'] = t('Random Dad joke');
+      $block['content'] = get_dad_joke();
+      break;
+  }
+
+  return $block;
+}
+
+/**
+ * Get a random Dad joke from icanhazdadjoke.com
+ */
+function get_dad_joke() {
+  # Initialise API call.
+  $curl = curl_init();
+  curl_setopt($curl, CURLOPT_URL, 'https://icanhazdadjoke.com/');
+  curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+    'Accept: application/json',
+    "User-Agent: 'Dad Joke' Backdrop module (https://github.com/backdrop-contrib/dadjoke)",
+  ));
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
+
+  # Make the API call.
+  $response = curl_exec($curl);
+  $code = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+  curl_close($curl);
+
+  # Get the returned joke.
+  if ($code < 400) {
+    $data = json_decode($response, TRUE);
+    if ($data['status'] == 200) {
+      return '<p class="joke">' . $data['joke'] . '</p><p class="permalink"><a href="https://icanhazdadjoke.com/j/' . $data['id'] . '">Share</a></p>';
+    }
+    else {
+      return '<code>ERROR: The API call returned invalid data.</code>';
+    }
+  }
+  else {
+    return "<code>ERROR: The API call failed with code '" . $code . "'.</code>";
+  }
+}

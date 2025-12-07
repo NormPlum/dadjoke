@@ -1,0 +1,6 @@
+type = module
+name = Dad Joke
+description = Display random Dad jokes from icanhazdadjoke.com
+backdrop = 1.x
+tags[] = Blocks
+tags[] = Fun
