@@ -1,7 +1,7 @@
 <?php
 /**
  * @file
- * Display random Dad jokes from icanhazdadjoke.com
+ * Display random Dad jokes from https://icanhazdadjoke.com/.
  */
 
 /**
@@ -10,7 +10,7 @@
 function dadjoke_block_info() {
   $blocks['dadjoke'] = array(
     'info' => t('Dad joke'),
-    'description' => t('A random Dad joke from icanhazdadjoke.com'),
+    'description' => t('A random Dad joke from https://icanhazdadjoke.com/.'),
   );
 
   return $blocks;
@@ -22,10 +22,21 @@ function dadjoke_block_info() {
 function dadjoke_block_view($delta = '', $settings = array(), $contexts = array()) {
   $block = array();
 
+  // Get the stored Dad joke, or a random one.
+  $joke = state_get('dadjoke') ?? get_dad_joke();
+
+  // Format the output.
+  if ($joke['error']) {
+    $output = '<code>' . $joke['text'] . '</code>';
+  }
+  else {
+    $output = '<p class="joke">' . $joke['text'] . '</p><p class="permalink"><a href="https://icanhazdadjoke.com/j/' . $joke['id'] . '">Permalink</a></p>';
+  }
+
   switch ($delta) {
     case 'dadjoke':
       $block['subject'] = t('Random Dad joke');
-      $block['content'] = get_dad_joke();
+      $block['content'] = $output;
       break;
   }
 
@@ -33,10 +44,27 @@ function dadjoke_block_view($delta = '', $settings = array(), $contexts = array(
 }
 
 /**
- * Get a random Dad joke from icanhazdadjoke.com
+ * Implements hook_cron().
+ */
+function dadjoke_cron() {
+  // Get a random Dad joke and store it as a state value.
+  $data = get_dad_joke();
+  state_set('dadjoke', $data);
+}
+
+/**
+ * Get a random Dad joke from https://icanhazdadjoke.com
+ *
+ * @return array
+ *   An array containing the following key/value pairs:
+ *   - text: The text to display (either the joke or an error message).
+ *   - error: A boolean representing whether or not there was an error.
+ *   - id: (optional) The joke ID (for permalinks).
  */
 function get_dad_joke() {
-  # Initialise API call.
+  $joke = array();
+
+  // Initialise API call.
   $curl = curl_init();
   curl_setopt($curl, CURLOPT_URL, 'https://icanhazdadjoke.com/');
   curl_setopt($curl, CURLOPT_HTTPHEADER, array(
@@ -45,22 +73,29 @@ function get_dad_joke() {
   ));
   curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
 
-  # Make the API call.
+  // Make the API call.
   $response = curl_exec($curl);
   $code = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
   curl_close($curl);
 
-  # Get the returned joke.
+  // Get the returned joke.
   if ($code < 400) {
     $data = json_decode($response, TRUE);
+
     if ($data['status'] == 200) {
-      return '<p class="joke">' . $data['joke'] . '</p><p class="permalink"><a href="https://icanhazdadjoke.com/j/' . $data['id'] . '">Share</a></p>';
+      $joke['text'] = $data['joke'];
+      $joke['error'] = FALSE;
+      $joke['id'] = $data['id'];
     }
     else {
-      return '<code>ERROR: The API call returned invalid data.</code>';
+      $joke['text'] = "ERROR: The API call <em>returned</em> status code '" . $data['status'] . "'.";
+      $joke['error'] = TRUE;
     }
   }
   else {
-    return "<code>ERROR: The API call failed with code '" . $code . "'.</code>";
+    $joke['text'] = "ERROR: The API call <em>failed</em> with status code '" . $code . "'.";
+    $joke['error'] = TRUE;
   }
+
+  return $joke;
 }
